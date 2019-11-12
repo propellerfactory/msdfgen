@@ -1,2 +1,8 @@
 .git
 Dockerfile
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake
+libmsdfgen.a
+Makefile
+msdfgen

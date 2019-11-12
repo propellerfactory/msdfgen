@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstring>
+#include <limits.h>
 
 #include "msdfgen.h"
 #include "msdfgen-ext.h"
@@ -45,6 +46,11 @@ static char toupper(char c) {
     return c >= 'a' && c <= 'z' ? c-'a'+'A' : c;
 }
 
+static bool parseSigned(int &value, const char *arg) {
+    static char c;
+    return sscanf(arg, "%d%c", &value, &c) == 1;
+}
+
 static bool parseUnsigned(unsigned &value, const char *arg) {
     static char c;
     return sscanf(arg, "%u%c", &value, &c) == 1;
@@ -66,11 +72,12 @@ static bool parseDouble(double &value, const char *arg) {
 }
 
 static bool parseUnicode(int &unicode, const char *arg) {
-    unsigned uuc;
-    if (parseUnsigned(uuc, arg)) {
-        unicode = uuc;
+    int uucs;
+    if (parseSigned(uucs, arg)) {
+        unicode = uucs;
         return true;
     }
+    unsigned uuc;
     if (arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X') && parseUnsignedHex(uuc, arg+2)) {
         unicode = uuc;
         return true;
@@ -368,7 +375,7 @@ int main(int argc, const char * const *argv) {
     const char *testRender = NULL;
     const char *testRenderMulti = NULL;
     bool outputSpecified = false;
-    int unicode = 0;
+    int unicode = INT_MAX;
     int svgPathIndex = 0;
 
     int width = 64, height = 64;
@@ -666,7 +673,7 @@ int main(int argc, const char * const *argv) {
             break;
         }
         case FONT: {
-            if (!unicode)
+            if (unicode == INT_MAX)
                 ABORT("No character specified! Use -font <file.ttf/otf> <character code>. Character code can be a number (65, 0x41), or a character in apostrophes ('A').");
             FreetypeHandle *ft = initializeFreetype();
             if (!ft) return -1;

@@ -126,9 +126,15 @@ bool getFontWhitespaceWidth(double &spaceAdvance, double &tabAdvance, FontHandle
 bool loadGlyph(Shape &output, FontHandle *font, int unicode, double *advance) {
     if (!font)
         return false;
-    FT_Error error = FT_Load_Char(font->face, unicode, FT_LOAD_NO_SCALE);
-    if (error)
-        return false;
+    if (unicode > 0) {
+        FT_Error error = FT_Load_Char(font->face, unicode, FT_LOAD_NO_SCALE);
+        if (error)
+            return false;
+    } else if (unicode <= 0) {
+        FT_Error error = FT_Load_Glyph(font->face, -unicode, FT_LOAD_NO_SCALE);
+        if (error)
+            return false;
+    }
     output.contours.clear();
     output.inverseYAxis = false;
     if (advance)
@@ -143,7 +149,7 @@ bool loadGlyph(Shape &output, FontHandle *font, int unicode, double *advance) {
     ftFunctions.cubic_to = &ftCubicTo;
     ftFunctions.shift = 0;
     ftFunctions.delta = 0;
-    error = FT_Outline_Decompose(&font->face->glyph->outline, &ftFunctions, &context);
+    FT_Error error = FT_Outline_Decompose(&font->face->glyph->outline, &ftFunctions, &context);
     if (error)
         return false;
     return true;
