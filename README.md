@@ -3,7 +3,7 @@
 This is a utility for generating signed distance fields from vector shapes and font glyphs,
 which serve as a texture representation that can be used in real-time graphics to efficiently reproduce said shapes.
 Although it can also be used to generate conventional signed distance fields best known from
-[this Valve paper](http://www.valvesoftware.com/publications/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf)
+[this Valve paper](https://steamcdn-a.akamaihd.net/apps/valve/2007/SIGGRAPH2007_AlphaTestedMagnification.pdf)
 and pseudo-distance fields, its primary purpose is to generate multi-channel distance fields,
 using a method I have developed. Unlike monochrome distance fields, they have the ability
 to reproduce sharp corners almost perfectly by utilizing all three color channels.
@@ -28,7 +28,7 @@ Those are exposed by the [msdfgen-ext.h](msdfgen-ext.h) header. This module uses
 [TinyXML2](http://www.grinninglizard.com/tinyxml2/),
 and [LodePNG](http://lodev.org/lodepng/).
 
-Additionaly, there is the [main.cpp](main.cpp), which wraps the functionality into
+Additionally, there is the [main.cpp](main.cpp), which wraps the functionality into
 a comprehensive standalone console program. To start using the program immediately,
 there is a Windows binary available for download in the ["Releases" section](https://github.com/Chlumsky/msdfgen/releases).
 To build the project, you may use the included [Visual Studio solution](Msdfgen.sln)
@@ -58,7 +58,7 @@ The input can be specified as one of:
 The complete list of available options can be printed with **-help**.
 Some of the important ones are:
  - **-o \<filename\>** &ndash; specifies the output file name. The desired format will be deduced from the extension
-   (png, bmp, txt, bin). Otherwise, use -format.
+   (png, bmp, tif, txt, bin). Otherwise, use -format.
  - **-size \<width\> \<height\>** &ndash; specifies the dimensions of the output distance field (in pixels).
  - **-range \<range\>**, **-pxrange \<range\>** &ndash; specifies the width of the range around the shape
    between the minimum and maximum representable signed distance in shape units or distance field pixels, respectivelly.
@@ -99,7 +99,7 @@ in order to generate a distance field. Please note that all classes and function
    `color` member. Keep in mind that at least two color channels must be turned on in each edge, and iff two edges meet
    at a sharp corner, they must only have one channel in common.
  - Call `generateSDF`, `generatePseudoSDF`, or `generateMSDF` to generate a distance field into a floating point
-   `Bitmap` object. This can then be worked with further or saved to a file using `saveBmp` or `savePng`.
+   `Bitmap` object. This can then be worked with further or saved to a file using `saveBmp`, `savePng`, or `saveTiff`.
  - You may also render an image from the distance field using `renderSDF`. Consider calling `simulate8bit`
    on the distance field beforehand to simulate the standard 8 bits/channel image format.
 
@@ -121,7 +121,7 @@ int main() {
                 //                      max. angle
                 edgeColoringSimple(shape, 3.0);
                 //           image width, height
-                Bitmap<FloatRGB> msdf(32, 32);
+                Bitmap<float, 3> msdf(32, 32);
                 //                     range, scale, translation
                 generateMSDF(msdf, shape, 4.0, 1.0, Vector2(4.0, 4.0));
                 savePng(msdf, "output.png");
