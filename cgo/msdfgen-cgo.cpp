@@ -1,5 +1,5 @@
-#include "msdfgen.h"
-#include "msdfgen-cgo.h"
+#include "../msdfgen.h"
+#include "../msdfgen-cgo.h"
 
 #define LARGE_VALUE 1e240
 
@@ -66,7 +66,7 @@ int bridge_generateMSDFA(const char* shapeDescription, int width, int height, do
 
     for (int y = 0; y < msdf.height(); ++y) {
         for (int x = 0; x < msdf.width(); ++x) {
-            int offset = (y * msdf.width() + x) * 4;
+            int offset = ((msdf.height() - y - 1) * msdf.width() + x) * 4;
             ((u_int8_t*)bitmap)[offset + 0] = (u_int8_t)pixelFloatToByte(msdf(x, y)[0]);
             ((u_int8_t*)bitmap)[offset + 1] = (u_int8_t)pixelFloatToByte(msdf(x, y)[1]);
             ((u_int8_t*)bitmap)[offset + 2] = (u_int8_t)pixelFloatToByte(msdf(x, y)[2]);

@@ -65,7 +65,7 @@ file(GLOB_RECURSE msdfgen_SOURCES
 file(GLOB_RECURSE msdfgen_core_SOURCES
 	"core/*.cpp"
 	"lib/*.cpp"
-	"msdfgen-cgo.cpp"
+	"cgo/msdfgen-cgo.cpp"
 )
 
 include_directories(${FREETYPE_INCLUDE_DIRS})
