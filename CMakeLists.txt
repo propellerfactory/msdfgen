@@ -62,12 +62,19 @@ file(GLOB_RECURSE msdfgen_SOURCES
 	"ext/*.cpp"
 )
 
+file(GLOB_RECURSE msdfgen_core_SOURCES
+	"core/*.cpp"
+	"lib/*.cpp"
+	"msdfgen-cgo.cpp"
+)
+
 include_directories(${FREETYPE_INCLUDE_DIRS})
 include_directories("include")
 
 # Build the library (aliased name because it's the same target name the exe)
 folderize_sources(msdfgen_HEADERS ${CMAKE_SOURCE_DIR})
 folderize_sources(msdfgen_SOURCES ${CMAKE_SOURCE_DIR})
+folderize_sources(msdfgen_core_SOURCES ${CMAKE_SOURCE_DIR})
 
 add_library(lib_msdfgen ${msdfgen_SOURCES} ${msdfgen_HEADERS})
 set_target_properties(lib_msdfgen PROPERTIES OUTPUT_NAME msdfgen)
@@ -78,3 +85,6 @@ target_link_libraries(lib_msdfgen ${FREETYPE_LIBRARIES})
 add_executable(msdfgen main.cpp msdfgen.h msdfgen-ext.h)
 target_compile_definitions(msdfgen PRIVATE MSDFGEN_STANDALONE)
 target_link_libraries(msdfgen lib_msdfgen)
+
+add_library(lib_msdfgen_core STATIC ${msdfgen_core_SOURCES} ${msdfgen_HEADERS})
+set_target_properties(lib_msdfgen_core PROPERTIES OUTPUT_NAME msdfgen_core)

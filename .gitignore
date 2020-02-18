@@ -19,3 +19,10 @@ render.png
 out/
 build/
 build_xcode/
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+msdfgen
+libmsdfgen.a
+test.png
