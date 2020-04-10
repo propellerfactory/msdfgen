@@ -1,8 +1,8 @@
 
 /*
- * MULTI-CHANNEL SIGNED DISTANCE FIELD GENERATOR v1.6 (2019-04-08) - standalone console program
+ * MULTI-CHANNEL SIGNED DISTANCE FIELD GENERATOR v1.7 (2020-03-07) - standalone console program
  * --------------------------------------------------------------------------------------------
- * A utility by Viktor Chlumsky, (c) 2014 - 2019
+ * A utility by Viktor Chlumsky, (c) 2014 - 2020
  *
  */
 
@@ -21,7 +21,6 @@
     #pragma warning(disable:4996)
 #endif
 
-#define LARGE_VALUE 1e240
 #define SDF_ERROR_ESTIMATE_PRECISION 19
 
 using namespace msdfgen;
@@ -35,7 +34,7 @@ enum Format {
     TEXT_FLOAT,
     BINARY,
     BINARY_FLOAT,
-    BINART_FLOAT_BE
+    BINARY_FLOAT_BE
 };
 
 static bool is8bitFormat(Format format) {
@@ -236,14 +235,14 @@ static const char * writeOutput(const BitmapConstRef<float, N> &bitmap, const ch
                 fclose(file);
                 return NULL;
             }
-            case BINARY: case BINARY_FLOAT: case BINART_FLOAT_BE: {
+            case BINARY: case BINARY_FLOAT: case BINARY_FLOAT_BE: {
                 FILE *file = fopen(filename, "wb");
                 if (!file) return "Failed to write output binary file.";
                 if (format == BINARY)
                     writeBinBitmap(file, bitmap.pixels, N*bitmap.width*bitmap.height);
                 else if (format == BINARY_FLOAT)
                     writeBinBitmapFloat(file, bitmap.pixels, N*bitmap.width*bitmap.height);
-                else if (format == BINART_FLOAT_BE)
+                else if (format == BINARY_FLOAT_BE)
                     writeBinBitmapFloatBE(file, bitmap.pixels, N*bitmap.width*bitmap.height);
                 fclose(file);
                 return NULL;
@@ -272,9 +271,10 @@ static const char *helpText =
         " <mode> <input specification> <options>\n"
     "\n"
     "MODES\n"
-    "  sdf - Generate conventional monochrome signed distance field.\n"
+    "  sdf - Generate conventional monochrome (true) signed distance field.\n"
     "  psdf - Generate monochrome signed pseudo-distance field.\n"
     "  msdf - Generate multi-channel signed distance field. This is used by default if no mode is specified.\n"
+    "  mtsdf - Generate combined multi-channel and true signed distance field in the alpha channel.\n"
     "  metrics - Report shape metrics only.\n"
     "\n"
     "INPUT SPECIFICATION\n"
@@ -296,6 +296,8 @@ static const char *helpText =
         "\tSets the scale used to convert shape units to pixels asymmetrically.\n"
     "  -autoframe\n"
         "\tAutomatically scales (unless specified) and translates the shape to fit.\n"
+    "  -coloringstrategy <simple / inktrap>\n"
+        "\tSelects the strategy of the edge coloring heuristic.\n"
     "  -edgecolors <sequence>\n"
         "\tOverrides automatic edge coloring with the specified color sequence.\n"
     "  -errorcorrection <threshold>\n"
@@ -362,6 +364,7 @@ int main(int argc, const char * const *argv) {
         SINGLE,
         PSEUDO,
         MULTI,
+        MULTI_AND_TRUE,
         METRICS
     } mode = MULTI;
     bool legacyMode = false;
@@ -392,7 +395,7 @@ int main(int argc, const char * const *argv) {
     Vector2 scale = 1;
     bool scaleSpecified = false;
     double angleThreshold = 3;
-    double edgeThreshold = 1.001;
+    double edgeThreshold = MSDFGEN_DEFAULT_ERROR_CORRECTION_THRESHOLD;
     bool defEdgeAssignment = true;
     const char *edgeAssignment = NULL;
     bool yFlip = false;
@@ -405,6 +408,7 @@ int main(int argc, const char * const *argv) {
         GUESS
     } orientation = KEEP;
     unsigned long long coloringSeed = 0;
+    void (*edgeColoring)(Shape &, double, unsigned long long) = edgeColoringSimple;
 
     int argPos = 1;
     bool suggestHelp = false;
@@ -417,6 +421,7 @@ int main(int argc, const char * const *argv) {
         ARG_MODE("sdf", SINGLE)
         ARG_MODE("psdf", PSEUDO)
         ARG_MODE("msdf", MULTI)
+        ARG_MODE("mtsdf", MULTI_AND_TRUE)
         ARG_MODE("metrics", METRICS)
 
         ARG_CASE("-svg", 1) {
@@ -500,7 +505,7 @@ int main(int argc, const char * const *argv) {
             else if (!strcmp(argv[argPos+1], "textfloat") || !strcmp(argv[argPos+1], "txtfloat")) SET_FORMAT(TEXT_FLOAT, "txt");
             else if (!strcmp(argv[argPos+1], "bin") || !strcmp(argv[argPos+1], "binary")) SET_FORMAT(BINARY, "bin");
             else if (!strcmp(argv[argPos+1], "binfloat") || !strcmp(argv[argPos+1], "binfloatle")) SET_FORMAT(BINARY_FLOAT, "bin");
-            else if (!strcmp(argv[argPos+1], "binfloatbe")) SET_FORMAT(BINART_FLOAT_BE, "bin");
+            else if (!strcmp(argv[argPos+1], "binfloatbe")) SET_FORMAT(BINARY_FLOAT_BE, "bin");
             else
                 puts("Unknown format specified.");
             argPos += 2;
@@ -579,14 +584,22 @@ int main(int argc, const char * const *argv) {
             argPos += 2;
             continue;
         }
+        ARG_CASE("-coloringstrategy", 1) {
+            if (!strcmp(argv[argPos+1], "simple")) edgeColoring = edgeColoringSimple;
+            else if (!strcmp(argv[argPos+1], "inktrap")) edgeColoring = edgeColoringInkTrap;
+            else
+                puts("Unknown coloring strategy specified.");
+            argPos += 2;
+            continue;
+        }
         ARG_CASE("-edgecolors", 1) {
-            static const char *allowed = " ?,cmyCMY";
+            static const char *allowed = " ?,cmwyCMWY";
             for (int i = 0; argv[argPos+1][i]; ++i) {
                 for (int j = 0; allowed[j]; ++j)
                     if (argv[argPos+1][i] == allowed[j])
-                        goto ROLL_ARG;
-                ABORT("Invalid edge coloring sequence. Use -assign <color sequence> with only the colors C, M, and Y. Separate contours by commas and use ? to keep the default assigment for a contour.");
-            ROLL_ARG:;
+                        goto EDGE_COLOR_VERIFIED;
+                ABORT("Invalid edge coloring sequence. Use -edgecolors <color sequence> with only the colors C, M, Y, and W. Separate contours by commas and use ? to keep the default assigment for a contour.");
+            EDGE_COLOR_VERIFIED:;
             }
             edgeAssignment = argv[argPos+1];
             argPos += 2;
@@ -651,8 +664,10 @@ int main(int argc, const char * const *argv) {
             argPos += 2;
             continue;
         }
-        ARG_CASE("-help", 0)
-            ABORT(helpText);
+        ARG_CASE("-help", 0) {
+            puts(helpText);
+            return 0;
+        }
         printf("Unknown setting or insufficient parameters: %s\n", arg);
         suggestHelp = true;
         ++argPos;
@@ -665,6 +680,8 @@ int main(int argc, const char * const *argv) {
     double glyphAdvance = 0;
     if (!inputType || !input)
         ABORT("No input specified! Use either -svg <file.svg> or -font <file.ttf/otf> <character code>, or see -help.");
+    if (mode == MULTI_AND_TRUE && (format == BMP || format == AUTO && output && cmpExtension(output, ".bmp")))
+        ABORT("Incompatible image format. A BMP file cannot contain alpha channel, which is required in mtsdf mode.");
     Shape shape;
     switch (inputType) {
         case SVG: {
@@ -721,13 +738,9 @@ int main(int argc, const char * const *argv) {
         shape.inverseYAxis = !shape.inverseYAxis;
 
     double avgScale = .5*(scale.x+scale.y);
-    struct {
-        double l, b, r, t;
-    } bounds = {
-        LARGE_VALUE, LARGE_VALUE, -LARGE_VALUE, -LARGE_VALUE
-    };
+    Shape::Bounds bounds = { };
     if (autoFrame || mode == METRICS || printMetrics || orientation == GUESS)
-        shape.bounds(bounds.l, bounds.b, bounds.r, bounds.t);
+        bounds = shape.getBounds();
 
     // Auto-frame
     if (autoFrame) {
@@ -789,6 +802,7 @@ int main(int argc, const char * const *argv) {
     // Compute output
     Bitmap<float, 1> sdf;
     Bitmap<float, 3> msdf;
+    Bitmap<float, 4> mtsdf;
     switch (mode) {
         case SINGLE: {
             sdf = Bitmap<float, 1>(width, height);
@@ -808,7 +822,7 @@ int main(int argc, const char * const *argv) {
         }
         case MULTI: {
             if (!skipColoring)
-                edgeColoringSimple(shape, angleThreshold, coloringSeed);
+                edgeColoring(shape, angleThreshold, coloringSeed);
             if (edgeAssignment)
                 parseColoring(shape, edgeAssignment);
             msdf = Bitmap<float, 3>(width, height);
@@ -816,6 +830,18 @@ int main(int argc, const char * const *argv) {
                 generateMSDF_legacy(msdf, shape, range, scale, translate, scanlinePass ? 0 : edgeThreshold);
             else
                 generateMSDF(msdf, shape, range, scale, translate, scanlinePass ? 0 : edgeThreshold, overlapSupport);
+            break;
+        }
+        case MULTI_AND_TRUE: {
+            if (!skipColoring)
+                edgeColoring(shape, angleThreshold, coloringSeed);
+            if (edgeAssignment)
+                parseColoring(shape, edgeAssignment);
+            mtsdf = Bitmap<float, 4>(width, height);
+            if (legacyMode)
+                generateMTSDF_legacy(mtsdf, shape, range, scale, translate, scanlinePass ? 0 : edgeThreshold);
+            else
+                generateMTSDF(mtsdf, shape, range, scale, translate, scanlinePass ? 0 : edgeThreshold, overlapSupport);
             break;
         }
         default:;
@@ -843,6 +869,9 @@ int main(int argc, const char * const *argv) {
             case MULTI:
                 invertColor<3>(msdf);
                 break;
+            case MULTI_AND_TRUE:
+                invertColor<4>(mtsdf);
+                break;
             default:;
         }
     }
@@ -856,6 +885,11 @@ int main(int argc, const char * const *argv) {
                 distanceSignCorrection(msdf, shape, scale, translate, fillRule);
                 if (edgeThreshold > 0)
                     msdfErrorCorrection(msdf, edgeThreshold/(scale*range));
+                break;
+            case MULTI_AND_TRUE:
+                distanceSignCorrection(mtsdf, shape, scale, translate, fillRule);
+                if (edgeThreshold > 0)
+                    msdfErrorCorrection(mtsdf, edgeThreshold/(scale*range));
                 break;
             default:;
         }
@@ -915,6 +949,29 @@ int main(int argc, const char * const *argv) {
             if (testRender) {
                 Bitmap<float, 1> render(testWidth, testHeight);
                 renderSDF(render, msdf, avgScale*range);
+                if (!savePng(render, testRender))
+                    ABORT("Failed to write test render file.");
+            }
+            break;
+        case MULTI_AND_TRUE:
+            error = writeOutput<4>(mtsdf, output, format);
+            if (error)
+                ABORT(error);
+            if (is8bitFormat(format) && (testRenderMulti || testRender || estimateError))
+                simulate8bit(mtsdf);
+            if (estimateError) {
+                double sdfError = estimateSDFError(mtsdf, shape, scale, translate, SDF_ERROR_ESTIMATE_PRECISION, fillRule);
+                printf("SDF error ~ %e\n", sdfError);
+            }
+            if (testRenderMulti) {
+                Bitmap<float, 4> render(testWidthM, testHeightM);
+                renderSDF(render, mtsdf, avgScale*range);
+                if (!savePng(render, testRenderMulti))
+                    puts("Failed to write test render file.");
+            }
+            if (testRender) {
+                Bitmap<float, 1> render(testWidth, testHeight);
+                renderSDF(render, mtsdf, avgScale*range);
                 if (!savePng(render, testRender))
                     ABORT("Failed to write test render file.");
             }
