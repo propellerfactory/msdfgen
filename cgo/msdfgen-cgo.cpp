@@ -26,7 +26,7 @@ int bridge_generateMSDFA(const char* shapeDescription, int width, int height, do
     }
     shape.normalize();
     edgeColoringSimple(shape, angleThreshold);
-    shape.bounds(bounds.l, bounds.b, bounds.r, bounds.t);
+    shape.bound(bounds.l, bounds.b, bounds.r, bounds.t);
     // Auto-frame
     double l = bounds.l, b = bounds.b, r = bounds.r, t = bounds.t;
     frame -= pxRange;
